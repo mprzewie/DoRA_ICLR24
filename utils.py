@@ -24,7 +24,7 @@ from sinkhorn_knopp import SinkhornKnopp
 sinkhorn_knopp = SinkhornKnopp(num_iters_sk=30, epsilon_sk=0.05)
 
 
-def MOT(attn, query, key, teacher_patches, patch_size, images):
+def MOT(attn, query, key, teacher_patches, patch_size, images, num_samples=3):
     
     images = images[0]
 
@@ -38,7 +38,7 @@ def MOT(attn, query, key, teacher_patches, patch_size, images):
        
 
     first_attn = attn[0][:, :, 0, 1:]
-    choose_random_heads = random.sample(range(first_attn.shape[1]), 3) 
+    choose_random_heads = random.sample(range(first_attn.shape[1]), num_samples)
     random_attn_heads = first_attn[:, choose_random_heads, :]
 
 
