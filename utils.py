@@ -33,24 +33,42 @@ def MOT(attn, query, key, teacher_patches, patch_size, images, num_samples=3):
 
     num_batch_per_img = images.shape[0]
 
+    # print("tp", teacher_patches.shape)
+    #
+    # print("q", query.shape)
     first_query = query[0][:, :, 1:, :]
+    # print("fq1", first_query.shape)
     first_query = rearrange(first_query, 'b h n d -> b n (h d)')
-       
+
+    # print("fq2", first_query.shape)
+    # print("attn", attn.shape)
 
     first_attn = attn[0][:, :, 0, 1:]
     choose_random_heads = random.sample(range(first_attn.shape[1]), num_samples)
     random_attn_heads = first_attn[:, choose_random_heads, :]
 
+    # print("fa", first_attn.shape)
+    # print("rah", random_attn_heads.shape)
 
     obj_prototypes = torch.einsum('bkn, bnd -> bkd', random_attn_heads, first_query) #k is number of objects
+
+    # print("obj_prototypes", obj_prototypes.shape)
+
     # normalized_query = first_query / first_query.norm(dim=-1, keepdim=True)
 
     normalized_features = teacher_patches[0] / teacher_patches[0].norm(dim=-1, keepdim=True)
+    # print("nfeat", normalized_features.shape)
 
     assignment = (normalized_features @ obj_prototypes.transpose(-2, -1))
+
+    # print("assignment", assignment.shape)
+
     with torch.no_grad():
         assignment_opt = sinkhorn_knopp(assignment)
+
+    # print("assignment_opt", assignment_opt.shape)
     masks = (assignment_opt.transpose(-2, -1) @ normalized_features)
+    # print("masks", masks.shape)
 
     num_frame = query.shape[0]
     
@@ -76,6 +94,7 @@ def MOT(attn, query, key, teacher_patches, patch_size, images, num_samples=3):
             
             final_img[i, :, cnt, :] = images[:,cnt,:] * torch.cat((tube1, tube1, tube1), dim=1)
 
+    # print("fimg", final_img.shape)
     return final_img
 
 

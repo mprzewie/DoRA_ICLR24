@@ -27,8 +27,8 @@ from PIL import Image
 
 from utils import trunc_normal_
 import utils
-import matplotlib.pyplot as plt
 
+from timm.models import VisionTransformer
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
@@ -217,8 +217,10 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x):
         x = self.prepare_tokens(x)
-        for blk in self.blocks:
+        # print("x", x.shape)
+        for b, blk in enumerate(self.blocks):
             x, attn,query,key = blk(x)
+            # print(b, [t.shape for t in [x, attn,query,key]])
         x = self.norm(x)
         return x[:, 0], x, attn, query,key
         

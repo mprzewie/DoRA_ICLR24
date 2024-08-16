@@ -23,7 +23,7 @@ import vision_transformer as vits
 from vision_transformer import DINOHead
 
 
-from WTDataloader import WT_dataset_1vid
+from WTDataloader import WT_dataset_1vid, Aria_dataset_1vid
 from einops import rearrange, reduce, repeat
 import torchvision
 
@@ -123,6 +123,8 @@ def get_args_parser():
     # Misc
     parser.add_argument('--data_path', default='/scratch/shashank/dataset/WT_videos/', type=str,
         help='Please specify path to the ImageNet training data.')
+    parser.add_argument("--data_kind", default="wt", choices=["wt", "aria_1video", "aria_multivideo"], type=str)
+
     parser.add_argument('--output_dir', default="/scratch/shashank/checkpoint/dino_WT/vanilla/", type=str, help='Path to save logs and checkpoints.')
     parser.add_argument('--saveckp_freq', default=20, type=int, help='Save checkpoint every x epochs.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
@@ -146,13 +148,32 @@ def train_dino(args):
         args.local_crops_scale,
         args.local_crops_number,
     )
-    
-    
-    
-    dataset = WT_dataset_1vid(args.data_path, 
-                args.frame_per_clip,  
+
+    if args.data_kind == "wt":
+        dataset = WT_dataset_1vid(args.data_path,
+                    args.frame_per_clip,
+                    args.step_between_clips,
+                    transform=transform)
+    elif args.data_kind == "aria_1video":
+        dataset = Aria_dataset_1vid(
+            Path(args.data_path),
+                args.frame_per_clip,
                 args.step_between_clips,
-                transform=transform) 
+                transform=transform
+        )
+    elif args.data_kind == "aria_multivideo":
+        data_paths = [
+            p for p in Path(args.data_path).iterdir() if (
+                p.is_dir() and
+                (p / "recording.vrs").exists() and
+                (p / "mps").exists()
+            )
+        ]
+        print("loading paths", data_paths)
+        dataset = torch.utils.data.ConcatDataset(
+            [Aria_dataset_1vid(p, args.frame_per_clip, args.step_between_clips, transform=transform) for p in data_paths]
+        )
+
 
 
     sampler = torch.utils.data.DistributedSampler(dataset, shuffle=True)
@@ -316,6 +337,23 @@ def train_one_epoch(student, teacher, teacher_without_ddp, dino_loss, data_loade
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = 'Epoch: [{}/{}]'.format(epoch, args.epochs)
     for it, (images) in enumerate(metric_logger.log_every(data_loader, 10, header)):
+
+        # import matplotlib.pyplot as plt
+        #
+        # b, f, c, h, w = images[0].shape
+        #
+        # fs = (5*b, 5*f)
+        # print(b, f, fs)
+        # fig, ax = plt.subplots(nrows=b, ncols=f, figsize=fs)
+        # for i in range(b):
+        #     for j in range(f):
+        #         ax[i, j].imshow(images[0][i][j].permute(1,2,0) + 0.5)
+        #
+        # plt.show()
+        # assert False
+
+
+
         # update weight decay and learning rate according to their schedule
         it = len(data_loader) * epoch + it  # global training iteration
         for i, param_group in enumerate(optimizer.param_groups):
